@@ -72,7 +72,7 @@ th{background:#f8fafc}
 </div>
 <div class="card">
 <h3>⏰ Yaqin to‘lovlar</h3>
-<table><thead><tr><th>Sana</th><th>To‘lov</th><th>Kategoriya</th><th>Hisob</th><th>Plan</th><th>Fakt</th><th>Status</th></tr></thead><tbody id="nearPayments"></tbody></table>
+<table><thead><tr><th>Sana</th><th>Izoh</th><th>Kategoriya</th><th>Hisob</th><th>Plan</th><th>Fakt</th><th>Status</th></tr></thead><tbody id="nearPayments"></tbody></table>
 </div>
 </section>
 
@@ -82,7 +82,7 @@ th{background:#f8fafc}
 <div class="grid">
 <div><label>Sana</label><input type="date" id="date"></div>
 <div><label>Oy</label><input type="month" id="month"></div>
-<div><label>To‘lov nomi</label><input id="name" placeholder="Masalan: Ijara, Internet"></div>
+<div><label>Izoh</label><textarea id="payIzoh" placeholder="Masalan: Savdo, Ijara, Internet"></textarea></div>
 <div><label>Kategoriya</label><select id="category"></select></div>
 <div><label>Hisob raqam</label><select id="account"></select></div>
 <div><label>Valyuta</label><select id="currency"><option>UZS</option><option>USD</option></select></div>
@@ -91,7 +91,7 @@ th{background:#f8fafc}
 <div><label>Fakt summa</label><input type="number" id="fact"></div>
 <div><label>Status</label><select id="status"><option>Rejada</option><option>To‘landi</option><option>Kechikdi</option><option>Bekor qilindi</option></select></div>
 </div>
-<br><label>Fikr / izoh</label><textarea id="comment"></textarea><br><br>
+<br><label>Qo‘shimcha izoh</label><textarea id="comment" placeholder="Qo‘shimcha ma’lumot bo‘lsa yozing"></textarea><br><br>
 <button class="btn" onclick="addItem()">✅ Saqlash</button>
 </div>
 </section>
@@ -105,7 +105,7 @@ th{background:#f8fafc}
 <div><label>Hisob raqam</label><select id="filterAccount" onchange="render()"></select></div>
 <div><label>Status</label><select id="filterStatus" onchange="render()"><option>Hammasi</option><option>Rejada</option><option>To‘landi</option><option>Kechikdi</option><option>Bekor qilindi</option></select></div>
 </div><br>
-<table><thead><tr><th>Sana</th><th>Oy</th><th>To‘lov</th><th>Kategoriya</th><th>Hisob</th><th>Plan</th><th>Fakt</th><th>Farq</th><th>Status</th><th>Izoh</th><th></th></tr></thead><tbody id="rows"></tbody></table>
+<table><thead><tr><th>Sana</th><th>Oy</th><th>Izoh</th><th>Kategoriya</th><th>Hisob</th><th>Plan</th><th>Fakt</th><th>Farq</th><th>Status</th><th>Qo‘shimcha izoh</th><th></th></tr></thead><tbody id="rows"></tbody></table>
 </div>
 </section>
 
@@ -156,7 +156,7 @@ th{background:#f8fafc}
 <div id="catList"></div>
 </div>
 <div class="card">
-<h3>💳 Hisob raqamlar ro‘yxati</h3>
+<h3> Hisob raqamlar ro‘yxati</h3>
 <div id="accList"></div>
 </div>
 </div>
@@ -165,39 +165,81 @@ th{background:#f8fafc}
 <script>
 let db=JSON.parse(localStorage.getItem("basicoPlanFaktPRO"))||{
 items:[],
-categories:["Boshqa"],
-accounts:["Naqd","Bank","Plastik","USD"]
+categories:[
+"💰 Boshqa tushumlar",
+],
+accounts:["💵 Naqd","🏦 Bank","💳 Plastik","💲 USD"]
 };
 
-today.innerText=new Date().toLocaleDateString("uz-UZ");
-date.valueAsDate=new Date();
-month.value=new Date().toISOString().slice(0,7);
-filterMonth.value=new Date().toISOString().slice(0,7);
-calMonth.value=new Date().toISOString().slice(0,7);
+const el=id=>document.getElementById(id);
+
+el("today").innerText=new Date().toLocaleDateString("uz-UZ");
+el("date").valueAsDate=new Date();
+el("month").value=new Date().toISOString().slice(0,7);
+el("filterMonth").value=new Date().toISOString().slice(0,7);
+el("calMonth").value=new Date().toISOString().slice(0,7);
 
 function save(){localStorage.setItem("basicoPlanFaktPRO",JSON.stringify(db))}
 function money(n){return Number(n||0).toLocaleString("uz-UZ")+" so'm"}
 
 function show(id,btn){
 document.querySelectorAll(".section").forEach(s=>s.classList.remove("active"));
-document.getElementById(id).classList.add("active");
+el(id).classList.add("active");
 document.querySelectorAll("nav button").forEach(b=>b.classList.remove("active"));
 btn.classList.add("active");
 render();
 }
 
 function loadSelects(){
-category.innerHTML=db.categories.map(x=>`<option>${x}</option>`).join("");
-account.innerHTML=db.accounts.map(x=>`<option>${x}</option>`).join("");
-filterCategory.innerHTML='<option>Hammasi</option>'+db.categories.map(x=>`<option>${x}</option>`).join("");
-filterAccount.innerHTML='<option>Hammasi</option>'+db.accounts.map(x=>`<option>${x}</option>`).join("");
+el("category").innerHTML=db.categories.map(x=>`<option>${x}</option>`).join("");
+el("account").innerHTML=db.accounts.map(x=>`<option>${x}</option>`).join("");
+el("filterCategory").innerHTML='<option>Hammasi</option>'+db.categories.map(x=>`<option>${x}</option>`).join("");
+el("filterAccount").innerHTML='<option>Hammasi</option>'+db.accounts.map(x=>`<option>${x}</option>`).join("");
 }
 
 function addItem(){
-let p=+plan.value*(+rate.value||1), f=+fact.value*(+rate.value||1);
-if(!name.value)return alert("To‘lov nomini yozing");
-db.items.push({date:date.value,month:month.value,name:name.value,category:category.value,account:account.value,currency:currency.value,plan:p,fact:f,status:status.value,comment:comment.value});
-save(); name.value=plan.value=fact.value=comment.value=""; render(); alert("✅ Saqlandi");
+const payIzoh=el("payIzoh");
+const dateInput=el("date");
+const monthInput=el("month");
+const categoryInput=el("category");
+const accountInput=el("account");
+const currencyInput=el("currency");
+const rateInput=el("rate");
+const planInput=el("plan");
+const factInput=el("fact");
+const statusInput=el("status");
+const commentInput=el("comment");
+
+let izoh=(payIzoh.value||"").trim();
+let p=Number(planInput.value||0)*Number(rateInput.value||1);
+let f=Number(factInput.value||0)*Number(rateInput.value||1);
+
+if(!izoh){
+alert("Izoh yozing");
+payIzoh.focus();
+return;
+}
+
+db.items.push({
+date:dateInput.value,
+month:monthInput.value,
+name:izoh,
+category:categoryInput.value,
+account:accountInput.value,
+currency:currencyInput.value,
+plan:p,
+fact:f,
+status:statusInput.value,
+comment:commentInput.value
+});
+
+save();
+payIzoh.value="";
+planInput.value="";
+factInput.value="";
+commentInput.value="";
+render();
+alert("✅ Saqlandi");
 }
 
 function delItem(i){db.items.splice(i,1);save();render()}
@@ -205,10 +247,10 @@ function delItem(i){db.items.splice(i,1);save();render()}
 function filtered(){
 return db.items.filter(x=>{
 let ok=true;
-if(filterMonth.value)ok=ok&&x.month==filterMonth.value;
-if(filterCategory.value!="Hammasi")ok=ok&&x.category==filterCategory.value;
-if(filterAccount.value!="Hammasi")ok=ok&&x.account==filterAccount.value;
-if(filterStatus.value!="Hammasi")ok=ok&&x.status==filterStatus.value;
+if(el("filterMonth").value)ok=ok&&x.month==el("filterMonth").value;
+if(el("filterCategory").value!="Hammasi")ok=ok&&x.category==el("filterCategory").value;
+if(el("filterAccount").value!="Hammasi")ok=ok&&x.account==el("filterAccount").value;
+if(el("filterStatus").value!="Hammasi")ok=ok&&x.status==el("filterStatus").value;
 return ok;
 })
 }
@@ -217,59 +259,59 @@ let mainChart,catChart;
 function render(){
 loadSelects();
 let arr=filtered(), p=0,f=0;
-rows.innerHTML="";
+el("rows").innerHTML="";
 arr.forEach((x,i)=>{
-p+=x.plan;f+=x.fact;
-rows.innerHTML+=`<tr><td>${x.date}</td><td>${x.month}</td><td>${x.name}</td><td>${x.category}</td><td>${x.account}</td><td>${money(x.plan)}</td><td>${money(x.fact)}</td><td>${money(x.plan-x.fact)}</td><td><span class="badge">${x.status}</span></td><td>${x.comment||""}</td><td><button class="iconbtn delete" onclick="delItem(${i})">🗑️</button></td></tr>`;
+p+=Number(x.plan||0);f+=Number(x.fact||0);
+el("rows").innerHTML+=`<tr><td>${x.date}</td><td>${x.month}</td><td>${x.name}</td><td>${x.category}</td><td>${x.account}</td><td>${money(x.plan)}</td><td>${money(x.fact)}</td><td>${money(x.plan-x.fact)}</td><td><span class="badge">${x.status}</span></td><td>${x.comment||""}</td><td><button class="iconbtn delete" onclick="delItem(${i})">🗑️</button></td></tr>`;
 });
-kPlan.innerText=money(p);kFact.innerText=money(f);kDiff.innerText=money(p-f);kPercent.innerText=p?Math.round(f/p*100)+"%":"0%";
+el("kPlan").innerText=money(p);el("kFact").innerText=money(f);el("kDiff").innerText=money(p-f);el("kPercent").innerText=p?Math.round(f/p*100)+"%":"0%";
 
-nearPayments.innerHTML=db.items.slice().sort((a,b)=>new Date(a.date)-new Date(b.date)).slice(0,8).map(x=>`<tr><td>${x.date}</td><td>${x.name}</td><td>${x.category}</td><td>${x.account}</td><td>${money(x.plan)}</td><td>${money(x.fact)}</td><td>${x.status}</td></tr>`).join("");
+el("nearPayments").innerHTML=db.items.slice().sort((a,b)=>new Date(a.date)-new Date(b.date)).slice(0,8).map(x=>`<tr><td>${x.date}</td><td>${x.name}</td><td>${x.category}</td><td>${x.account}</td><td>${money(x.plan)}</td><td>${money(x.fact)}</td><td>${x.status}</td></tr>`).join("");
 
 let acc={};db.accounts.forEach(a=>acc[a]={p:0,f:0});
-db.items.forEach(x=>{if(!acc[x.account])acc[x.account]={p:0,f:0};acc[x.account].p+=x.plan;acc[x.account].f+=x.fact});
-accountTable.innerHTML=Object.keys(acc).map(a=>`<tr><td>${a}</td><td>${money(acc[a].p)}</td><td>${money(acc[a].f)}</td><td>${money(acc[a].p-acc[a].f)}</td></tr>`).join("");
+db.items.forEach(x=>{if(!acc[x.account])acc[x.account]={p:0,f:0};acc[x.account].p+=Number(x.plan||0);acc[x.account].f+=Number(x.fact||0)});
+el("accountTable").innerHTML=Object.keys(acc).map(a=>`<tr><td>${a}</td><td>${money(acc[a].p)}</td><td>${money(acc[a].f)}</td><td>${money(acc[a].p-acc[a].f)}</td></tr>`).join("");
 
-topCosts.innerHTML=db.items.slice().sort((a,b)=>b.fact-a.fact).slice(0,7).map(x=>`<tr><td>${x.name}</td><td>${money(x.fact)}</td></tr>`).join("");
-lateCosts.innerHTML=db.items.filter(x=>x.status=="Kechikdi").map(x=>`<tr><td>${x.date} — ${x.name}</td><td>${money(x.plan)}</td></tr>`).join("");
+el("topCosts").innerHTML=db.items.slice().sort((a,b)=>Number(b.fact||0)-Number(a.fact||0)).slice(0,7).map(x=>`<tr><td>${x.name||"-"}</td><td>${money(x.fact)}</td></tr>`).join("");
+el("lateCosts").innerHTML=db.items.filter(x=>x.status=="Kechikdi").map(x=>`<tr><td>${x.date} — ${x.name}</td><td>${money(x.plan)}</td></tr>`).join("");
 
 renderSettings();
 renderCalendar();
 
-let cat={};db.items.forEach(x=>cat[x.category]=(cat[x.category]||0)+x.fact);
+let cat={};db.items.forEach(x=>cat[x.category]=(cat[x.category]||0)+Number(x.fact||0));
 if(mainChart)mainChart.destroy(); if(catChart)catChart.destroy();
-mainChart=new Chart(document.getElementById("mainChart"),{type:"bar",data:{labels:["Plan","Fakt","Farq"],datasets:[{label:"Summa",data:[p,f,p-f]}]}});
-catChart=new Chart(document.getElementById("catChart"),{type:"doughnut",data:{labels:Object.keys(cat),datasets:[{data:Object.values(cat)}]}});
+mainChart=new Chart(el("mainChart"),{type:"bar",data:{labels:["Plan","Fakt","Farq"],datasets:[{label:"Summa",data:[p,f,p-f]}]}});
+catChart=new Chart(el("catChart"),{type:"doughnut",data:{labels:Object.keys(cat),datasets:[{data:Object.values(cat)}]}});
 }
 
 function renderCalendar(){
-let [y,m]=calMonth.value.split("-").map(Number), days=new Date(y,m,0).getDate();
-calendarBox.innerHTML="";
+let [y,m]=el("calMonth").value.split("-").map(Number), days=new Date(y,m,0).getDate();
+el("calendarBox").innerHTML="";
 for(let d=1;d<=days;d++){
 let ds=`${y}-${String(m).padStart(2,"0")}-${String(d).padStart(2,"0")}`;
 let payments=db.items.filter(x=>x.date==ds);
-calendarBox.innerHTML+=`<div class="day"><b>${d}</b>${payments.map(p=>`<div class="pay">${p.name}<br>${money(p.plan)}</div>`).join("")}</div>`;
+el("calendarBox").innerHTML+=`<div class="day"><b>${d}</b>${payments.map(p=>`<div class="pay">${p.name}<br>${money(p.plan)}</div>`).join("")}</div>`;
 }
 }
 
 function renderSettings(){
-catList.innerHTML=db.categories.map((x,i)=>`<div class="list-item"><b>🏷️ ${x}</b><div class="actions"><button class="iconbtn edit" onclick="editCategory(${i})">✏️</button><button class="iconbtn delete" onclick="deleteCategory(${i})">🗑️</button></div></div>`).join("");
-accList.innerHTML=db.accounts.map((x,i)=>`<div class="list-item"><b>💳 ${x}</b><div class="actions"><button class="iconbtn edit" onclick="editAccount(${i})">✏️</button><button class="iconbtn delete" onclick="deleteAccount(${i})">🗑️</button></div></div>`).join("");
+el("catList").innerHTML=db.categories.map((x,i)=>`<div class="list-item"><b>🏷️ ${x}</b><div class="actions"><button class="iconbtn edit" onclick="editCategory(${i})">✏️</button><button class="iconbtn delete" onclick="deleteCategory(${i})">🗑️</button></div></div>`).join("");
+el("accList").innerHTML=db.accounts.map((x,i)=>`<div class="list-item"><b>💳 ${x}</b><div class="actions"><button class="iconbtn edit" onclick="editAccount(${i})">✏️</button><button class="iconbtn delete" onclick="deleteAccount(${i})">🗑️</button></div></div>`).join("");
 }
 
-function addCategory(){if(newCat.value){db.categories.push(newCat.value);newCat.value="";save();render()}}
-function addAccount(){if(newAcc.value){db.accounts.push(newAcc.value);newAcc.value="";save();render()}}
+function addCategory(){let v=(el("newCat").value||"").trim(); if(v){db.categories.push(v);el("newCat").value="";save();render()}}
+function addAccount(){let v=(el("newAcc").value||"").trim(); if(v){db.accounts.push(v);el("newAcc").value="";save();render()}}
 
 function editCategory(i){
 let v=prompt("Kategoriya nomini tahrirlang:",db.categories[i]);
-if(v){db.categories[i]=v;save();render();}
+if(v){db.categories[i]=v.trim();save();render();}
 }
 function deleteCategory(i){
 if(confirm("Kategoriya o‘chirilsinmi?")){db.categories.splice(i,1);save();render();}
 }
 function editAccount(i){
 let v=prompt("Hisob raqam nomini tahrirlang:",db.accounts[i]);
-if(v){db.accounts[i]=v;save();render();}
+if(v){db.accounts[i]=v.trim();save();render();}
 }
 function deleteAccount(i){
 if(confirm("Hisob raqam o‘chirilsinmi?")){db.accounts.splice(i,1);save();render();}
