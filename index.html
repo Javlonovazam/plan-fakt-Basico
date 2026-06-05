@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BASICO | Plan Fakt</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+*{box-sizing:border-box}
+body{margin:0;font-family:Arial;background:#f3f6fb;color:#111827}
+header{background:#0f172a;color:white;padding:18px 28px;display:flex;justify-content:space-between;align-items:center}
+.logo{font-size:24px;font-weight:900}.sub{font-size:13px;color:#cbd5e1}
+nav{background:white;padding:12px 20px;display:flex;gap:8px;flex-wrap:wrap;border-bottom:1px solid #e5e7eb;position:sticky;top:0;z-index:5}
+nav button{border:0;padding:11px 15px;border-radius:10px;background:#e5e7eb;font-weight:800;cursor:pointer}
+nav button.active{background:#2563eb;color:white}
+.section{display:none;padding:22px}.section.active{display:block}
+.card{background:white;border-radius:16px;padding:18px;margin-bottom:16px;box-shadow:0 4px 14px #0001}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:14px}
+.kpi{font-size:27px;font-weight:900}.green{color:#16a34a}.red{color:#dc2626}.blue{color:#2563eb}.orange{color:#f97316}
+input,select,textarea{width:100%;padding:11px;border:1px solid #cbd5e1;border-radius:10px;margin-top:5px}
+label{font-size:12px;font-weight:900;color:#475569}
+.btn{border:0;border-radius:10px;padding:11px 16px;font-weight:900;cursor:pointer;background:#16a34a;color:white}
+.btn.redbtn{background:#dc2626}.btn.bluebtn{background:#2563eb}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th,td{padding:10px;border-bottom:1px solid #e5e7eb;text-align:left}
+th{background:#f8fafc}
+.badge{padding:5px 9px;border-radius:30px;background:#e0f2fe;font-size:12px;font-weight:800}
+.calendar{display:grid;grid-template-columns:repeat(7,1fr);gap:8px}
+.day{background:#fff;border:1px solid #e5e7eb;border-radius:12px;min-height:90px;padding:8px;font-size:12px}
+.pay{background:#fee2e2;color:#991b1b;padding:4px;margin-top:4px;border-radius:6px}
+.small{font-size:12px;color:#64748b}
+</style>
+</head>
+<body>
+
+<header>
+<div>
+<div class="logo">BASICO — Plan Fakt Tizimi</div>
+<div class="sub">Oylik xarajatlar • Hisob raqamlar • To‘lov kalendari • Plan/Fakt analiz</div>
+</div>
+<div id="today"></div>
+</header>
+
+<nav>
+<button class="active" onclick="show('dashboard',this)">Dashboard</button>
+<button onclick="show('add',this)">Plan/Fakt kiritish</button>
+<button onclick="show('table',this)">Jadval</button>
+<button onclick="show('calendar',this)">Kalendar</button>
+<button onclick="show('accounts',this)">Hisob raqamlar</button>
+<button onclick="show('analytics',this)">Analitika</button>
+<button onclick="show('settings',this)">Nastroyka</button>
+</nav>
+
+<section id="dashboard" class="section active">
+<div class="grid">
+<div class="card"><p>Oylik Plan</p><div class="kpi blue" id="kPlan">0</div></div>
+<div class="card"><p>Oylik Fakt</p><div class="kpi red" id="kFact">0</div></div>
+<div class="card"><p>Farq</p><div class="kpi orange" id="kDiff">0</div></div>
+<div class="card"><p>Bajarilish</p><div class="kpi green" id="kPercent">0%</div></div>
+</div>
+<div class="grid">
+<div class="card"><h3>Plan va Fakt grafigi</h3><canvas id="mainChart"></canvas></div>
+<div class="card"><h3>Kategoriya bo‘yicha xarajat</h3><canvas id="catChart"></canvas></div>
+</div>
+<div class="card">
+<h3>Yaqin to‘lovlar</h3>
+<table><thead><tr><th>Sana</th><th>To‘lov</th><th>Kategoriya</th><th>Hisob</th><th>Plan</th><th>Fakt</th><th>Status</th></tr></thead><tbody id="nearPayments"></tbody></table>
+</div>
+</section>
+
+<section id="add" class="section">
+<div class="card">
+<h2>Plan/Fakt kiritish</h2>
+<div class="grid">
+<div><label>Sana</label><input type="date" id="date"></div>
+<div><label>Oy</label><input type="month" id="month"></div>
+<div><label>To‘lov nomi</label><input id="name" placeholder="Masalan: Ijara, Internet, Reklama"></div>
+<div><label>Kategoriya</label><select id="category"></select></div>
+<div><label>Hisob raqam</label><select id="account"></select></div>
+<div><label>Valyuta</label><select id="currency"><option>UZS</option><option>USD</option></select></div>
+<div><label>Kurs</label><input type="number" id="rate" value="1"></div>
+<div><label>Plan summa</label><input type="number" id="plan"></div>
+<div><label>Fakt summa</label><input type="number" id="fact"></div>
+<div><label>Status</label><select id="status"><option>Rejada</option><option>To‘landi</option><option>Kechikdi</option><option>Bekor qilindi</option></select></div>
+</div>
+<br>
+<label>Fikr / izoh</label>
+<textarea id="comment" placeholder="Nega ortiqcha ketdi, qachon to‘lanadi, kim javobgar..."></textarea>
+<br><br>
+<button class="btn" onclick="addItem()">Saqlash</button>
+</div>
+</section>
+
+<section id="table" class="section">
+<div class="card">
+<h2>Plan/Fakt jadvali</h2>
+<div class="grid">
+<div><label>Oy filtri</label><input type="month" id="filterMonth" onchange="render()"></div>
+<div><label>Kategoriya</label><select id="filterCategory" onchange="render()"></select></div>
+<div><label>Hisob raqam</label><select id="filterAccount" onchange="render()"></select></div>
+<div><label>Status</label><select id="filterStatus" onchange="render()"><option>Hammasi</option><option>Rejada</option><option>To‘landi</option><option>Kechikdi</option><option>Bekor qilindi</option></select></div>
+</div>
+<br>
+<table><thead><tr><th>Sana</th><th>Oy</th><th>To‘lov</th><th>Kategoriya</th><th>Hisob</th><th>Plan</th><th>Fakt</th><th>Farq</th><th>Status</th><th>Izoh</th><th></th></tr></thead><tbody id="rows"></tbody></table>
+</div>
+</section>
+
+<section id="calendar" class="section">
+<div class="card">
+<h2>To‘lov kalendari</h2>
+<div class="grid">
+<div><label>Kalendar oyi</label><input type="month" id="calMonth" onchange="renderCalendar()"></div>
+</div>
+</div>
+<div class="calendar" id="calendarBox"></div>
+</section>
+
+<section id="accounts" class="section">
+<div class="card">
+<h2>Hisob raqamlar bo‘yicha</h2>
+<table><thead><tr><th>Hisob raqam</th><th>Plan</th><th>Fakt</th><th>Farq</th></tr></thead><tbody id="accountTable"></tbody></table>
+</div>
+</section>
+
+<section id="analytics" class="section">
+<div class="grid">
+<div class="card"><h3>Eng katta xarajatlar</h3><table><tbody id="topCosts"></tbody></table></div>
+<div class="card"><h3>Kechikkan to‘lovlar</h3><table><tbody id="lateCosts"></tbody></table></div>
+</div>
+</section>
+
+<section id="settings" class="section">
+<div class="card">
+<h2>Nastroyka</h2>
+<div class="grid">
+<div>
+<label>Yangi kategoriya</label>
+<input id="newCat">
+<br><br><button class="btn" onclick="addCategory()">Kategoriya qo‘shish</button>
+</div>
+<div>
+<label>Yangi hisob raqam</label>
+<input id="newAcc">
+<br><br><button class="btn" onclick="addAccount()">Hisob qo‘shish</button>
+</div>
+<div>
+<label>Ma’lumotlarni tozalash</label>
+<br><br><button class="btn redbtn" onclick="clearAll()">Hammasini o‘chirish</button>
+</div>
+</div>
+<p class="small">Hozir ma’lumotlar kompyuteringiz brauzerida saqlanadi. Keyin Supabase ulansa, hamma xodimlar bitta bazada ishlaydi.</p>
+</div>
+</section>
+
+<script>
+let db=JSON.parse(localStorage.getItem("basicoPlanFakt"))||{
+items:[],
+categories:["Ijara","Ish haqi","Reklama","Transport","Internet","Kommunal","Soliq","Xomashyo","Kredit","Boshqa"],
+accounts:["Naqd","Bank","Plastik","USD karta"]
+};
+
+today.innerText=new Date().toLocaleDateString("uz-UZ");
+date.valueAsDate=new Date();
+month.value=new Date().toISOString().slice(0,7);
+filterMonth.value=new Date().toISOString().slice(0,7);
+calMonth.value=new Date().toISOString().slice(0,7);
+
+function save(){localStorage.setItem("basicoPlanFakt",JSON.stringify(db))}
+function money(n){return Number(n||0).toLocaleString("uz-UZ")+" so'm"}
+function show(id,btn){document.querySelectorAll(".section").forEach(s=>s.classList.remove("active"));document.getElementById(id).classList.add("active");document.querySelectorAll("nav button").forEach(b=>b.classList.remove("active"));btn.classList.add("active");render()}
+function loadSelects(){
+category.innerHTML=db.categories.map(x=>`<option>${x}</option>`).join("");
+account.innerHTML=db.accounts.map(x=>`<option>${x}</option>`).join("");
+filterCategory.innerHTML='<option>Hammasi</option>'+db.categories.map(x=>`<option>${x}</option>`).join("");
+filterAccount.innerHTML='<option>Hammasi</option>'+db.accounts.map(x=>`<option>${x}</option>`).join("");
+}
+function addItem(){
+let p=+plan.value*(+rate.value||1), f=+fact.value*(+rate.value||1);
+if(!name.value)return alert("To‘lov nomini yozing");
+db.items.push({date:date.value,month:month.value,name:name.value,category:category.value,account:account.value,currency:currency.value,plan:p,fact:f,status:status.value,comment:comment.value});
+save(); name.value=plan.value=fact.value=comment.value=""; render(); alert("Saqlandi");
+}
+function delItem(i){db.items.splice(i,1);save();render()}
+function filtered(){
+return db.items.filter(x=>{
+let ok=true;
+if(filterMonth.value)ok=ok&&x.month==filterMonth.value;
+if(filterCategory.value!="Hammasi")ok=ok&&x.category==filterCategory.value;
+if(filterAccount.value!="Hammasi")ok=ok&&x.account==filterAccount.value;
+if(filterStatus.value!="Hammasi")ok=ok&&x.status==filterStatus.value;
+return ok;
+})
+}
+let mainChart,catChart;
+function render(){
+loadSelects();
+let arr=filtered(), p=0,f=0;
+rows.innerHTML="";
+arr.forEach((x,i)=>{
+p+=x.plan;f+=x.fact;
+let diff=x.plan-x.fact;
+rows.innerHTML+=`<tr><td>${x.date}</td><td>${x.month}</td><td>${x.name}</td><td>${x.category}</td><td>${x.account}</td><td>${money(x.plan)}</td><td>${money(x.fact)}</td><td>${money(diff)}</td><td><span class="badge">${x.status}</span></td><td>${x.comment||""}</td><td><button class="btn redbtn" onclick="delItem(${i})">X</button></td></tr>`;
+});
+kPlan.innerText=money(p);kFact.innerText=money(f);kDiff.innerText=money(p-f);kPercent.innerText=p?Math.round(f/p*100)+"%":"0%";
+
+nearPayments.innerHTML=db.items.sort((a,b)=>new Date(a.date)-new Date(b.date)).slice(0,8).map(x=>`<tr><td>${x.date}</td><td>${x.name}</td><td>${x.category}</td><td>${x.account}</td><td>${money(x.plan)}</td><td>${money(x.fact)}</td><td>${x.status}</td></tr>`).join("");
+
+let acc={};db.accounts.forEach(a=>acc[a]={p:0,f:0});
+db.items.forEach(x=>{if(!acc[x.account])acc[x.account]={p:0,f:0};acc[x.account].p+=x.plan;acc[x.account].f+=x.fact});
+accountTable.innerHTML=Object.keys(acc).map(a=>`<tr><td>${a}</td><td>${money(acc[a].p)}</td><td>${money(acc[a].f)}</td><td>${money(acc[a].p-acc[a].f)}</td></tr>`).join("");
+
+topCosts.innerHTML=[...db.items].sort((a,b)=>b.fact-a.fact).slice(0,7).map(x=>`<tr><td>${x.name}</td><td>${money(x.fact)}</td></tr>`).join("");
+lateCosts.innerHTML=db.items.filter(x=>x.status=="Kechikdi").map(x=>`<tr><td>${x.date} — ${x.name}</td><td>${money(x.plan)}</td></tr>`).join("");
+
+let cat={};db.items.forEach(x=>cat[x.category]=(cat[x.category]||0)+x.fact);
+if(mainChart)mainChart.destroy(); if(catChart)catChart.destroy();
+mainChart=new Chart(document.getElementById("mainChart"),{type:"bar",data:{labels:["Plan","Fakt","Farq"],datasets:[{label:"Summa",data:[p,f,p-f]}]}});
+catChart=new Chart(document.getElementById("catChart"),{type:"doughnut",data:{labels:Object.keys(cat),datasets:[{data:Object.values(cat)}]}});
+renderCalendar();
+}
+function renderCalendar(){
+let [y,m]=calMonth.value.split("-").map(Number), days=new Date(y,m,0).getDate();
+calendarBox.innerHTML="";
+for(let d=1;d<=days;d++){
+let ds=`${y}-${String(m).padStart(2,"0")}-${String(d).padStart(2,"0")}`;
+let payments=db.items.filter(x=>x.date==ds);
+calendarBox.innerHTML+=`<div class="day"><b>${d}</b>${payments.map(p=>`<div class="pay">${p.name}<br>${money(p.plan)}</div>`).join("")}</div>`;
+}
+}
+function addCategory(){if(newCat.value){db.categories.push(newCat.value);newCat.value="";save();render()}}
+function addAccount(){if(newAcc.value){db.accounts.push(newAcc.value);newAcc.value="";save();render()}}
+function clearAll(){if(confirm("Hammasi o‘chsinmi?")){localStorage.removeItem("basicoPlanFakt");location.reload()}}
+render();
+</script>
+
+</body>
+</html>
