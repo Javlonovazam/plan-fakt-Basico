@@ -183,6 +183,105 @@ function money(n) {
   return Number(n || 0).toLocaleString("uz-UZ") + " so'm";
 }
 
+function pad2(n) {
+  return String(n).padStart(2, "0");
+}
+
+function normalizeDateValue(value) {
+  if (!value) return "";
+
+  if (value instanceof Date && !isNaN(value)) {
+    return value.getFullYear() + "-" + pad2(value.getMonth() + 1) + "-" + pad2(value.getDate());
+  }
+
+  let s = String(value).trim();
+
+  if (!s) return "";
+
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) {
+    return s.slice(0, 10);
+  }
+
+  if (/^\d{2}\.\d{2}\.\d{4}/.test(s)) {
+    const parts = s.split(/[.\s]/);
+    return parts[2] + "-" + parts[1] + "-" + parts[0];
+  }
+
+  if (/^\d{1,2}\/\d{1,2}\/\d{4}/.test(s)) {
+    const parts = s.split(/[\/\s]/);
+    return parts[2] + "-" + pad2(parts[0]) + "-" + pad2(parts[1]);
+  }
+
+  const d = new Date(s);
+  if (!isNaN(d)) {
+    return d.getFullYear() + "-" + pad2(d.getMonth() + 1) + "-" + pad2(d.getDate());
+  }
+
+  return s;
+}
+
+function normalizeMonthValue(value, dateValue = "") {
+  if (!value && dateValue) return normalizeDateValue(dateValue).slice(0, 7);
+  if (!value) return "";
+
+  if (value instanceof Date && !isNaN(value)) {
+    return value.getFullYear() + "-" + pad2(value.getMonth() + 1);
+  }
+
+  let s = String(value).trim();
+
+  if (!s && dateValue) return normalizeDateValue(dateValue).slice(0, 7);
+  if (!s) return "";
+
+  if (/^\d{4}-\d{2}/.test(s)) {
+    return s.slice(0, 7);
+  }
+
+  if (/^\d{2}\.\d{4}/.test(s)) {
+    const parts = s.split(".");
+    return parts[1] + "-" + parts[0];
+  }
+
+  if (/^\d{2}\.\d{2}\.\d{4}/.test(s)) {
+    const parts = s.split(/[.\s]/);
+    return parts[2] + "-" + parts[1];
+  }
+
+  if (/^\d{1,2}\/\d{1,2}\/\d{4}/.test(s)) {
+    const parts = s.split(/[\/\s]/);
+    return parts[2] + "-" + pad2(parts[0]);
+  }
+
+  const d = new Date(s);
+  if (!isNaN(d)) {
+    return d.getFullYear() + "-" + pad2(d.getMonth() + 1);
+  }
+
+  return s;
+}
+
+function normalizeItem(item) {
+  const x = item || {};
+  const date = normalizeDateValue(x.date || x.sana || x["Sana"]);
+  const month = normalizeMonthValue(x.month || x.oy || x["Oy"], date);
+
+  return {
+    id: x.id || x.ID || ("ID-" + Date.now() + "-" + Math.floor(Math.random() * 100000)),
+    date: date,
+    month: month,
+    name: x.name || x.izoh || x["Izoh"] || "",
+    category: x.category || x.kategoriya || x["Kategoriya"] || "",
+    account: x.account || x.hisob || x["Hisob raqam"] || "",
+    currency: x.currency || x.valyuta || x["Valyuta"] || "UZS",
+    rate: Number(x.rate || x.kurs || x["Kurs"] || 1),
+    plan: Number(x.plan || x["Plan summa"] || 0),
+    fact: Number(x.fact || x["Fakt summa"] || 0),
+    status: x.status || x["Status"] || "Rejada",
+    comment: x.comment || x["Qo‘shimcha izoh"] || x["Qo'shimcha izoh"] || "",
+    createdAt: x.createdAt || x["Yaratilgan vaqt"] || ""
+  };
+}
+
 function show(id, btn) {
   document.querySelectorAll(".section").forEach(s => s.classList.remove("active"));
   el(id).classList.add("active");
@@ -244,7 +343,7 @@ async function loadFromSheets() {
     if (res && res.status === "ok") {
       const sheetDb = res.db ? res.db : res;
 
-      db.items = Array.isArray(sheetDb.items) ? sheetDb.items : [];
+      db.items = Array.isArray(sheetDb.items) ? sheetDb.items.map(normalizeItem) : [];
       db.categories = Array.isArray(sheetDb.categories) && sheetDb.categories.length ? sheetDb.categories : db.categories;
       db.accounts = Array.isArray(sheetDb.accounts) && sheetDb.accounts.length ? sheetDb.accounts : db.accounts;
 
@@ -292,8 +391,8 @@ async function addItem() {
 
   const item = {
     id: "ID-" + Date.now(),
-    date: dateInput.value,
-    month: monthInput.value,
+    date: normalizeDateValue(dateInput.value),
+    month: normalizeMonthValue(monthInput.value, dateInput.value),
     name: izoh,
     category: categoryInput.value,
     account: accountInput.value,
@@ -340,9 +439,11 @@ async function delItem(id) {
 }
 
 function filtered() {
+  const selectedMonth = normalizeMonthValue(el("filterMonth").value);
   return db.items.filter(x => {
     let ok = true;
-    if (el("filterMonth").value) ok = ok && x.month == el("filterMonth").value;
+    const itemMonth = normalizeMonthValue(x.month, x.date);
+    if (selectedMonth) ok = ok && itemMonth == selectedMonth;
     if (el("filterCategory").value != "Hammasi") ok = ok && x.category == el("filterCategory").value;
     if (el("filterAccount").value != "Hammasi") ok = ok && x.account == el("filterAccount").value;
     if (el("filterStatus").value != "Hammasi") ok = ok && x.status == el("filterStatus").value;
@@ -452,7 +553,7 @@ function renderCalendar() {
 
   for (let d = 1; d <= days; d++) {
     let ds = `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
-    let payments = db.items.filter(x => x.date == ds);
+    let payments = db.items.filter(x => normalizeDateValue(x.date) == ds);
 
     el("calendarBox").innerHTML += `
       <div class="day">
