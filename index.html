@@ -183,6 +183,148 @@ function money(n) {
   return Number(n || 0).toLocaleString("uz-UZ") + " so'm";
 }
 
+function normalizeKey(v) {
+  return String(v || "")
+    .toLowerCase()
+    .replace(/[’'`ʻʼ]/g, "")
+    .replace(/[^a-zа-яё0-9]/gi, "");
+}
+
+function getField(obj, names) {
+  if (!obj || typeof obj !== "object") return "";
+  const map = {};
+  Object.keys(obj).forEach(k => map[normalizeKey(k)] = obj[k]);
+
+  for (const name of names) {
+    const key = normalizeKey(name);
+    if (Object.prototype.hasOwnProperty.call(map, key)) {
+      return map[key];
+    }
+  }
+  return "";
+}
+
+function toNumber(value) {
+  if (value === null || value === undefined || value === "") return 0;
+  if (typeof value === "number") return isNaN(value) ? 0 : value;
+
+  let s = String(value)
+    .replace(/\s/g, "")
+    .replace(/so'm/gi, "")
+    .replace(/сум/gi, "")
+    .replace(/,/g, ".")
+    .replace(/[^\d.-]/g, "");
+
+  const n = Number(s);
+  return isNaN(n) ? 0 : n;
+}
+
+function normalizeDate(value) {
+  if (!value) return "";
+
+  if (Object.prototype.toString.call(value) === "[object Date]") {
+    return value.toISOString().slice(0, 10);
+  }
+
+  let s = String(value).trim();
+
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) {
+    return s.slice(0, 10);
+  }
+
+  let dm = s.match(/^(\d{1,2})[./-](\d{1,2})[./-](\d{4})/);
+  if (dm) {
+    return `${dm[3]}-${String(dm[2]).padStart(2, "0")}-${String(dm[1]).padStart(2, "0")}`;
+  }
+
+  let d = new Date(s);
+  if (!isNaN(d.getTime())) {
+    return d.toISOString().slice(0, 10);
+  }
+
+  return s;
+}
+
+function normalizeMonth(value, dateValue = "") {
+  if (value) {
+    let s = String(value).trim();
+
+    if (/^\d{4}-\d{2}$/.test(s)) return s;
+    if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 7);
+
+    let dm = s.match(/^(\d{1,2})[./-](\d{1,2})[./-](\d{4})/);
+    if (dm) return `${dm[3]}-${String(dm[2]).padStart(2, "0")}`;
+
+    const monthMap = {
+      "yanvar": "01", "январь": "01", "january": "01",
+      "fevral": "02", "февраль": "02", "february": "02",
+      "mart": "03", "март": "03", "march": "03",
+      "aprel": "04", "апрель": "04", "april": "04",
+      "may": "05", "май": "05",
+      "iyun": "06", "июнь": "06", "june": "06",
+      "iyul": "07", "июль": "07", "july": "07",
+      "avgust": "08", "август": "08", "august": "08",
+      "sentabr": "09", "сентябрь": "09", "september": "09",
+      "oktabr": "10", "октябрь": "10", "october": "10",
+      "noyabr": "11", "ноябрь": "11", "november": "11",
+      "dekabr": "12", "декабрь": "12", "december": "12"
+    };
+
+    const lower = s.toLowerCase();
+    const year = (lower.match(/\d{4}/) || [])[0];
+    if (year) {
+      for (const key in monthMap) {
+        if (lower.includes(key)) return `${year}-${monthMap[key]}`;
+      }
+    }
+  }
+
+  const d = normalizeDate(dateValue);
+  return d && d.length >= 7 ? d.slice(0, 7) : "";
+}
+
+function normalizeList(arr, fallback) {
+  const source = Array.isArray(arr) && arr.length ? arr : fallback;
+  const seen = new Set();
+  const out = [];
+
+  source.forEach(v => {
+    const text = String(v || "").trim();
+    if (!text) return;
+    const key = normalizeKey(text);
+    if (seen.has(key)) return;
+    seen.add(key);
+    out.push(text);
+  });
+
+  return out.length ? out : fallback;
+}
+
+function normalizeItem(raw) {
+  const item = raw || {};
+  const date = normalizeDate(getField(item, ["date", "sana", "Sana"]));
+  const month = normalizeMonth(getField(item, ["month", "oy", "Oy"]), date);
+
+  const planRaw = getField(item, ["plan", "Plan", "Plan summa", "plan summa", "planSumma", "plansumma"]);
+  const factRaw = getField(item, ["fact", "fakt", "Fakt", "Fakt summa", "fakt summa", "factSumma", "faktsumma"]);
+
+  return {
+    id: String(getField(item, ["id", "ID"]) || ("ID-" + Date.now() + "-" + Math.floor(Math.random() * 100000))),
+    date: date,
+    month: month,
+    name: String(getField(item, ["name", "izoh", "Izoh", "to'lov nomi", "tolov nomi"]) || "").trim(),
+    category: String(getField(item, ["category", "kategoriya", "Kategoriya"]) || "").trim(),
+    account: String(getField(item, ["account", "hisob", "Hisob", "hisob raqam", "Hisob raqam"]) || "").trim(),
+    currency: String(getField(item, ["currency", "valyuta", "Valyuta"]) || "UZS").trim(),
+    rate: toNumber(getField(item, ["rate", "kurs", "Kurs"])) || 1,
+    plan: toNumber(planRaw),
+    fact: toNumber(factRaw),
+    status: String(getField(item, ["status", "Status"]) || "Rejada").trim(),
+    comment: String(getField(item, ["comment", "qo'shimcha izoh", "qoshimcha izoh", "Qo'shimcha izoh", "Qo‘shimcha izoh"]) || "").trim(),
+    createdAt: String(getField(item, ["createdAt", "created at", "yaratilgan vaqt", "Yaratilgan vaqt"]) || "").trim()
+  };
+}
+
 function show(id, btn) {
   document.querySelectorAll(".section").forEach(s => s.classList.remove("active"));
   el(id).classList.add("active");
@@ -243,10 +385,11 @@ async function loadFromSheets() {
 
     if (res && res.status === "ok") {
       const sheetDb = res.db ? res.db : res;
+      const rawItems = Array.isArray(sheetDb.items) ? sheetDb.items : [];
 
-      db.items = Array.isArray(sheetDb.items) ? sheetDb.items : [];
-      db.categories = Array.isArray(sheetDb.categories) && sheetDb.categories.length ? sheetDb.categories : db.categories;
-      db.accounts = Array.isArray(sheetDb.accounts) && sheetDb.accounts.length ? sheetDb.accounts : db.accounts;
+      db.items = rawItems.map(normalizeItem).filter(x => x.name || x.plan || x.fact);
+      db.categories = normalizeList(sheetDb.categories, db.categories);
+      db.accounts = normalizeList(sheetDb.accounts, db.accounts);
 
       render();
     } else {
@@ -260,10 +403,20 @@ async function loadFromSheets() {
 }
 
 function loadSelects() {
+  const selectedCategory = el("category").value;
+  const selectedAccount = el("account").value;
+  const selectedFilterCategory = el("filterCategory").value || "Hammasi";
+  const selectedFilterAccount = el("filterAccount").value || "Hammasi";
+
   el("category").innerHTML = db.categories.map(x => `<option>${x}</option>`).join("");
   el("account").innerHTML = db.accounts.map(x => `<option>${x}</option>`).join("");
   el("filterCategory").innerHTML = '<option>Hammasi</option>' + db.categories.map(x => `<option>${x}</option>`).join("");
   el("filterAccount").innerHTML = '<option>Hammasi</option>' + db.accounts.map(x => `<option>${x}</option>`).join("");
+
+  if (selectedCategory && db.categories.includes(selectedCategory)) el("category").value = selectedCategory;
+  if (selectedAccount && db.accounts.includes(selectedAccount)) el("account").value = selectedAccount;
+  el("filterCategory").value = db.categories.includes(selectedFilterCategory) ? selectedFilterCategory : "Hammasi";
+  el("filterAccount").value = db.accounts.includes(selectedFilterAccount) ? selectedFilterAccount : "Hammasi";
 }
 
 async function addItem() {
@@ -293,7 +446,7 @@ async function addItem() {
   const item = {
     id: "ID-" + Date.now(),
     date: dateInput.value,
-    month: monthInput.value,
+    month: normalizeMonth(monthInput.value, dateInput.value),
     name: izoh,
     category: categoryInput.value,
     account: accountInput.value,
@@ -340,12 +493,20 @@ async function delItem(id) {
 }
 
 function filtered() {
+  const filterMonth = normalizeMonth(el("filterMonth").value);
+  const filterCategory = el("filterCategory").value;
+  const filterAccount = el("filterAccount").value;
+  const filterStatus = el("filterStatus").value;
+
   return db.items.filter(x => {
+    const itemMonth = normalizeMonth(x.month, x.date);
     let ok = true;
-    if (el("filterMonth").value) ok = ok && x.month == el("filterMonth").value;
-    if (el("filterCategory").value != "Hammasi") ok = ok && x.category == el("filterCategory").value;
-    if (el("filterAccount").value != "Hammasi") ok = ok && x.account == el("filterAccount").value;
-    if (el("filterStatus").value != "Hammasi") ok = ok && x.status == el("filterStatus").value;
+
+    if (filterMonth) ok = ok && itemMonth === filterMonth;
+    if (filterCategory !== "Hammasi") ok = ok && x.category === filterCategory;
+    if (filterAccount !== "Hammasi") ok = ok && x.account === filterAccount;
+    if (filterStatus !== "Hammasi") ok = ok && x.status === filterStatus;
+
     return ok;
   });
 }
@@ -359,19 +520,21 @@ function render() {
   el("rows").innerHTML = "";
 
   arr.forEach((x) => {
-    p += Number(x.plan || 0);
-    f += Number(x.fact || 0);
+    const planValue = Number(x.plan || 0);
+    const factValue = Number(x.fact || 0);
+    p += planValue;
+    f += factValue;
 
     el("rows").innerHTML += `
       <tr>
         <td>${x.date || ""}</td>
-        <td>${x.month || ""}</td>
+        <td>${normalizeMonth(x.month, x.date) || ""}</td>
         <td>${x.name || ""}</td>
         <td>${x.category || ""}</td>
         <td>${x.account || ""}</td>
-        <td>${money(x.plan)}</td>
-        <td>${money(x.fact)}</td>
-        <td>${money(Number(x.plan || 0) - Number(x.fact || 0))}</td>
+        <td>${money(planValue)}</td>
+        <td>${money(factValue)}</td>
+        <td>${money(planValue - factValue)}</td>
         <td><span class="badge">${x.status || ""}</span></td>
         <td>${x.comment || ""}</td>
         <td><button class="iconbtn delete" onclick="delItem('${x.id}')">🗑️</button></td>
@@ -385,7 +548,7 @@ function render() {
 
   el("nearPayments").innerHTML = db.items
     .slice()
-    .sort((a, b) => new Date(a.date) - new Date(b.date))
+    .sort((a, b) => new Date(normalizeDate(a.date)) - new Date(normalizeDate(b.date)))
     .slice(0, 8)
     .map(x => `<tr><td>${x.date || ""}</td><td>${x.name || ""}</td><td>${x.category || ""}</td><td>${x.account || ""}</td><td>${money(x.plan)}</td><td>${money(x.fact)}</td><td>${x.status || ""}</td></tr>`)
     .join("");
@@ -405,9 +568,9 @@ function render() {
 
   el("topCosts").innerHTML = db.items
     .slice()
-    .sort((a, b) => Number(b.fact || 0) - Number(a.fact || 0))
+    .sort((a, b) => Math.max(Number(b.fact || 0), Number(b.plan || 0)) - Math.max(Number(a.fact || 0), Number(a.plan || 0)))
     .slice(0, 7)
-    .map(x => `<tr><td>${x.name || "-"}</td><td>${money(x.fact)}</td></tr>`)
+    .map(x => `<tr><td>${x.name || "-"}</td><td>${money(Number(x.fact || 0) || Number(x.plan || 0))}</td></tr>`)
     .join("");
 
   el("lateCosts").innerHTML = db.items
@@ -419,7 +582,10 @@ function render() {
   renderCalendar();
 
   let cat = {};
-  db.items.forEach(x => cat[x.category] = (cat[x.category] || 0) + Number(x.fact || 0));
+  db.items.forEach(x => {
+    const value = Number(x.fact || 0) || Number(x.plan || 0);
+    cat[x.category] = (cat[x.category] || 0) + value;
+  });
 
   if (mainChart) mainChart.destroy();
   if (catChart) catChart.destroy();
@@ -452,12 +618,12 @@ function renderCalendar() {
 
   for (let d = 1; d <= days; d++) {
     let ds = `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
-    let payments = db.items.filter(x => x.date == ds);
+    let payments = db.items.filter(x => normalizeDate(x.date) == ds);
 
     el("calendarBox").innerHTML += `
       <div class="day">
         <b>${d}</b>
-        ${payments.map(p => `<div class="pay">${p.name || ""}<br>${money(p.plan)}</div>`).join("")}
+        ${payments.map(p => `<div class="pay">${p.name || ""}<br>${money(Number(p.fact || 0) || Number(p.plan || 0))}</div>`).join("")}
       </div>`;
   }
 }
@@ -491,6 +657,7 @@ async function addCategory() {
   if (!v) return;
 
   db.categories.push(v);
+  db.categories = normalizeList(db.categories, db.categories);
   el("newCat").value = "";
   render();
 
@@ -503,6 +670,7 @@ async function addAccount() {
   if (!v) return;
 
   db.accounts.push(v);
+  db.accounts = normalizeList(db.accounts, db.accounts);
   el("newAcc").value = "";
   render();
 
