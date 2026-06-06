@@ -37,6 +37,7 @@ th{background:#f8fafc}
 .actions{display:flex;gap:8px}
 .iconbtn{border:0;border-radius:10px;padding:8px 11px;cursor:pointer;font-weight:900}
 .edit{background:#dbeafe;color:#1d4ed8}.delete{background:#fee2e2;color:#b91c1c}
+.sync{position:fixed;right:18px;bottom:18px;background:#0f172a;color:white;border-radius:16px;padding:12px 16px;font-size:13px;font-weight:900;box-shadow:0 8px 25px #0004;z-index:50}
 </style>
 </head>
 <body>
@@ -58,6 +59,8 @@ th{background:#f8fafc}
 <button onclick="show('analytics',this)">📈 Analitika</button>
 <button onclick="show('settings',this)">⚙️ Nastroyka</button>
 </nav>
+
+<div class="sync" id="syncStatus">⏳ Google Sheets ulanmoqda...</div>
 
 <section id="dashboard" class="section active">
 <div class="grid">
@@ -144,7 +147,7 @@ th{background:#f8fafc}
 </div>
 <div class="card">
 <h3>🧹 Ma’lumotlarni tozalash</h3>
-<p class="small">Barcha ma’lumotlarni o‘chiradi.</p>
+<p class="small">Barcha ma’lumotlarni Google Sheetsdan o‘chiradi.</p>
 <button class="btn redbtn" onclick="clearAll()">🗑️ Hammasini o‘chirish</button>
 </div>
 </div>
@@ -156,18 +159,24 @@ th{background:#f8fafc}
 <div id="catList"></div>
 </div>
 <div class="card">
-<h3> Hisob raqamlar ro‘yxati</h3>
+<h3>💳 Hisob raqamlar ro‘yxati</h3>
 <div id="accList"></div>
 </div>
 </div>
 </section>
 
 <script>
-let db=JSON.parse(localStorage.getItem("basicoPlanFaktPRO"))||{
+/*
+MUHIM:
+Bu joyga Apps Script Web App URL qo‘yiladi.
+Google Sheet URL emas, aynan Deploy qilingan Web App URL kerak.
+Masalan: https://script.google.com/macros/s/AKfycbx....../exec
+*/
+const API_URL = "https://script.google.com/macros/s/AKfycbw4PzZgY20u37hYnmIm12_cnUWU_8Nrc1DZ9k4rdOK0h7Sp7ifruTKsqJKXtas6AtNf/exec";
+
+let db={
 items:[],
-categories:[
-"💰 Boshqa tushumlar",
-],
+categories:["💰 Boshqa tushumlar"],
 accounts:["💵 Naqd","🏦 Bank","💳 Plastik","💲 USD"]
 };
 
@@ -179,8 +188,51 @@ el("month").value=new Date().toISOString().slice(0,7);
 el("filterMonth").value=new Date().toISOString().slice(0,7);
 el("calMonth").value=new Date().toISOString().slice(0,7);
 
-function save(){localStorage.setItem("basicoPlanFaktPRO",JSON.stringify(db))}
+function setSync(text){el("syncStatus").innerText=text;}
 function money(n){return Number(n||0).toLocaleString("uz-UZ")+" so'm"}
+function uid(){return Date.now().toString()+Math.random().toString(36).slice(2,8)}
+
+async function api(action,payload={}){
+if(!API_URL || API_URL.includes("BU_YERGA")){
+throw new Error("Apps Script Web App URL qo‘yilmagan");
+}
+const res=await fetch(API_URL,{method:"POST",body:JSON.stringify({action,...payload})});
+return await res.json();
+}
+
+async function loadFromSheets(){
+try{
+setSync("⏳ Google Sheetsdan yuklanmoqda...");
+const res=await api("getData");
+if(res.status==="ok"){
+db=res.db;
+setSync("✅ Google Sheets ulangan");
+render();
+}else{
+throw new Error(res.message||"Xatolik");
+}
+}catch(err){
+console.error(err);
+setSync("⚠️ Link qo‘yilmagan yoki ulanish xatosi");
+render();
+}
+}
+
+async function saveToSheets(){
+try{
+setSync("⏳ Saqlanmoqda...");
+const res=await api("saveData",{db});
+if(res.status==="ok"){
+setSync("✅ Google Sheetsga saqlandi");
+}else{
+throw new Error(res.message||"Saqlanmadi");
+}
+}catch(err){
+console.error(err);
+setSync("⚠️ Google Sheetsga saqlanmadi");
+alert("Google Sheetsga saqlanmadi. Apps Script Web App URLni tekshiring.");
+}
+}
 
 function show(id,btn){
 document.querySelectorAll(".section").forEach(s=>s.classList.remove("active"));
@@ -197,7 +249,7 @@ el("filterCategory").innerHTML='<option>Hammasi</option>'+db.categories.map(x=>`
 el("filterAccount").innerHTML='<option>Hammasi</option>'+db.accounts.map(x=>`<option>${x}</option>`).join("");
 }
 
-function addItem(){
+async function addItem(){
 const payIzoh=el("payIzoh");
 const dateInput=el("date");
 const monthInput=el("month");
@@ -214,35 +266,36 @@ let izoh=(payIzoh.value||"").trim();
 let p=Number(planInput.value||0)*Number(rateInput.value||1);
 let f=Number(factInput.value||0)*Number(rateInput.value||1);
 
-if(!izoh){
-alert("Izoh yozing");
-payIzoh.focus();
-return;
-}
+if(!izoh){alert("Izoh yozing");payIzoh.focus();return;}
 
 db.items.push({
+id:uid(),
 date:dateInput.value,
 month:monthInput.value,
 name:izoh,
 category:categoryInput.value,
 account:accountInput.value,
 currency:currencyInput.value,
+rate:Number(rateInput.value||1),
 plan:p,
 fact:f,
 status:statusInput.value,
-comment:commentInput.value
+comment:commentInput.value,
+createdAt:new Date().toISOString()
 });
 
-save();
-payIzoh.value="";
-planInput.value="";
-factInput.value="";
-commentInput.value="";
+payIzoh.value="";planInput.value="";factInput.value="";commentInput.value="";
 render();
+await saveToSheets();
 alert("✅ Saqlandi");
 }
 
-function delItem(i){db.items.splice(i,1);save();render()}
+async function delItem(id){
+if(!confirm("Ma’lumot o‘chirilsinmi?"))return;
+db.items=db.items.filter(x=>x.id!==id);
+render();
+await saveToSheets();
+}
 
 function filtered(){
 return db.items.filter(x=>{
@@ -260,9 +313,9 @@ function render(){
 loadSelects();
 let arr=filtered(), p=0,f=0;
 el("rows").innerHTML="";
-arr.forEach((x,i)=>{
+arr.forEach(x=>{
 p+=Number(x.plan||0);f+=Number(x.fact||0);
-el("rows").innerHTML+=`<tr><td>${x.date}</td><td>${x.month}</td><td>${x.name}</td><td>${x.category}</td><td>${x.account}</td><td>${money(x.plan)}</td><td>${money(x.fact)}</td><td>${money(x.plan-x.fact)}</td><td><span class="badge">${x.status}</span></td><td>${x.comment||""}</td><td><button class="iconbtn delete" onclick="delItem(${i})">🗑️</button></td></tr>`;
+el("rows").innerHTML+=`<tr><td>${x.date}</td><td>${x.month}</td><td>${x.name}</td><td>${x.category}</td><td>${x.account}</td><td>${money(x.plan)}</td><td>${money(x.fact)}</td><td>${money(x.plan-x.fact)}</td><td><span class="badge">${x.status}</span></td><td>${x.comment||""}</td><td><button class="iconbtn delete" onclick="delItem('${x.id}')">🗑️</button></td></tr>`;
 });
 el("kPlan").innerText=money(p);el("kFact").innerText=money(f);el("kDiff").innerText=money(p-f);el("kPercent").innerText=p?Math.round(f/p*100)+"%":"0%";
 
@@ -275,9 +328,7 @@ el("accountTable").innerHTML=Object.keys(acc).map(a=>`<tr><td>${a}</td><td>${mon
 el("topCosts").innerHTML=db.items.slice().sort((a,b)=>Number(b.fact||0)-Number(a.fact||0)).slice(0,7).map(x=>`<tr><td>${x.name||"-"}</td><td>${money(x.fact)}</td></tr>`).join("");
 el("lateCosts").innerHTML=db.items.filter(x=>x.status=="Kechikdi").map(x=>`<tr><td>${x.date} — ${x.name}</td><td>${money(x.plan)}</td></tr>`).join("");
 
-renderSettings();
-renderCalendar();
-
+renderSettings();renderCalendar();
 let cat={};db.items.forEach(x=>cat[x.category]=(cat[x.category]||0)+Number(x.fact||0));
 if(mainChart)mainChart.destroy(); if(catChart)catChart.destroy();
 mainChart=new Chart(el("mainChart"),{type:"bar",data:{labels:["Plan","Fakt","Farq"],datasets:[{label:"Summa",data:[p,f,p-f]}]}});
@@ -299,25 +350,16 @@ el("catList").innerHTML=db.categories.map((x,i)=>`<div class="list-item"><b>🏷
 el("accList").innerHTML=db.accounts.map((x,i)=>`<div class="list-item"><b>💳 ${x}</b><div class="actions"><button class="iconbtn edit" onclick="editAccount(${i})">✏️</button><button class="iconbtn delete" onclick="deleteAccount(${i})">🗑️</button></div></div>`).join("");
 }
 
-function addCategory(){let v=(el("newCat").value||"").trim(); if(v){db.categories.push(v);el("newCat").value="";save();render()}}
-function addAccount(){let v=(el("newAcc").value||"").trim(); if(v){db.accounts.push(v);el("newAcc").value="";save();render()}}
+async function addCategory(){let v=(el("newCat").value||"").trim(); if(v){db.categories.push(v);el("newCat").value="";render();await saveToSheets()}}
+async function addAccount(){let v=(el("newAcc").value||"").trim(); if(v){db.accounts.push(v);el("newAcc").value="";render();await saveToSheets()}}
 
-function editCategory(i){
-let v=prompt("Kategoriya nomini tahrirlang:",db.categories[i]);
-if(v){db.categories[i]=v.trim();save();render();}
-}
-function deleteCategory(i){
-if(confirm("Kategoriya o‘chirilsinmi?")){db.categories.splice(i,1);save();render();}
-}
-function editAccount(i){
-let v=prompt("Hisob raqam nomini tahrirlang:",db.accounts[i]);
-if(v){db.accounts[i]=v.trim();save();render();}
-}
-function deleteAccount(i){
-if(confirm("Hisob raqam o‘chirilsinmi?")){db.accounts.splice(i,1);save();render();}
-}
-function clearAll(){if(confirm("Hammasi o‘chsinmi?")){localStorage.removeItem("basicoPlanFaktPRO");location.reload()}}
-render();
+async function editCategory(i){let v=prompt("Kategoriya nomini tahrirlang:",db.categories[i]);if(v){db.categories[i]=v.trim();render();await saveToSheets();}}
+async function deleteCategory(i){if(confirm("Kategoriya o‘chirilsinmi?")){db.categories.splice(i,1);render();await saveToSheets();}}
+async function editAccount(i){let v=prompt("Hisob raqam nomini tahrirlang:",db.accounts[i]);if(v){db.accounts[i]=v.trim();render();await saveToSheets();}}
+async function deleteAccount(i){if(confirm("Hisob raqam o‘chirilsinmi?")){db.accounts.splice(i,1);render();await saveToSheets();}}
+async function clearAll(){if(confirm("Hammasi o‘chsinmi?")){db.items=[];render();await saveToSheets();}}
+
+loadFromSheets();
 </script>
 </body>
 </html>
