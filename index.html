@@ -205,6 +205,7 @@ function jsonp(action, params = {}) {
     const url = new URL(API_URL);
     url.searchParams.set("callback", callbackName);
     url.searchParams.set("action", action);
+    url.searchParams.set("_", Date.now());
 
     Object.keys(params).forEach(key => {
       url.searchParams.set(key, params[key]);
@@ -239,11 +240,18 @@ function postToSheet(action, data = {}) {
 async function loadFromSheets() {
   try {
     const res = await jsonp("get");
+
     if (res && res.status === "ok") {
-      db.items = Array.isArray(res.items) ? res.items : [];
-      db.categories = Array.isArray(res.categories) && res.categories.length ? res.categories : db.categories;
-      db.accounts = Array.isArray(res.accounts) && res.accounts.length ? res.accounts : db.accounts;
+      const sheetDb = res.db ? res.db : res;
+
+      db.items = Array.isArray(sheetDb.items) ? sheetDb.items : [];
+      db.categories = Array.isArray(sheetDb.categories) && sheetDb.categories.length ? sheetDb.categories : db.categories;
+      db.accounts = Array.isArray(sheetDb.accounts) && sheetDb.accounts.length ? sheetDb.accounts : db.accounts;
+
       render();
+    } else {
+      console.error("Google Sheets javobi noto‘g‘ri:", res);
+      alert("Google Sheetsdan ma’lumot yuklanmadi. Apps Script javobi noto‘g‘ri.");
     }
   } catch (err) {
     console.error(err);
@@ -573,6 +581,6 @@ async function clearAll() {
 loadSelects();
 render();
 loadFromSheets();
-</script></script>
+</script>
 </body>
 </html>
